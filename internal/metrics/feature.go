@@ -32,6 +32,7 @@ import (
 
 const (
 	featureID              = "Metrics"
+	featureDefinition      = "com.bosch.iot.suite.edge.metric:Metrics:1.0.0"
 	subjectMetricsResponse = "data"
 	pathMetricsRequest     = "/features/" + featureID + "/inbox/messages/request"
 	contentTypeJSON        = "application/json"
@@ -117,7 +118,7 @@ func (m *Metrics) Close() {
 func (m *Metrics) connectHandler(client *ditto.Client) {
 	cmd := things.NewCommand(model.NewNamespacedIDFrom(m.deviceID)).
 		Feature(featureID).
-		Modify(model.Feature{})
+		Modify((&model.Feature{}).WithDefinitionFrom(featureDefinition))
 	msg := cmd.Envelope(
 		protocol.WithResponseRequired(false),
 		protocol.WithCorrelationID(uuid.NewString()))
