@@ -40,11 +40,11 @@ golang/go (1.17.2)
 * Project: https://github.com/golang/go
 * Source:  https://github.com/golang/go/releases/tag/go1.17.2
 
-eclipse/ditto-clients-golang (0.0.0-20220117072220-2bb11d6a660e)
+eclipse/ditto-clients-golang (0.0.0-20220225085802-cf3b306280d3)
 
 * License: Eclipse Public License v2.0
 * Project: https://github.com/eclipse/ditto-clients-golang
-* Source:  https://github.com/eclipse/ditto-clients-golang/tree/2bb11d6a660eb5e8e9ce6b8ed930b49f6b19d537
+* Source:  https://github.com/eclipse/ditto-clients-golang/tree/cf3b306280d3453473ae8dd65e78f978e2c838ea
 
 eclipse/paho.mqtt.golang (1.4.1)
 
@@ -52,11 +52,11 @@ eclipse/paho.mqtt.golang (1.4.1)
 * Project: https://github.com/eclipse/paho.mqtt.golang
 * Source:  https://github.com/eclipse/paho.mqtt.golang/releases/tag/v1.4.1
 
-google/uuid (1.2.0)
+google/uuid (1.3.0)
 
 * License: BSD 3-Clause "New" or "Revised" License
 * Project: https://github.com/google/uuid
-* Source:  https://github.com/google/uuid/releases/tag/v1.2.0
+* Source:  https://github.com/google/uuid/releases/tag/v1.3.0
 
 gorilla/websocket (1.4.2)
 

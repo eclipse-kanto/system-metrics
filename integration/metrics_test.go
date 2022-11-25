@@ -90,11 +90,11 @@ func (suite *systemMetricsSuite) testMetrics(params map[string]interface{}, expe
 		assert.NoError(suite.T(), err, "error while stopping system metrics")
 	}()
 
-	_, err = util.ExecuteOperation(suite.Cfg, suite.metricsFeatureURL, "request", params)
-	require.NoError(suite.T(), err, "error while requesting the system metrics")
-
 	timestamp := time.Now().Unix()
 	actualOriginators := make(map[string]bool)
+
+	_, err = util.ExecuteOperation(suite.Cfg, suite.metricsFeatureURL, "request", params)
+	require.NoError(suite.T(), err, "error while requesting the system metrics")
 
 	result := util.ProcessWSMessages(suite.Cfg, ws, func(msg *protocol.Envelope) (bool, error) {
 		if msg.Path != suite.pathData {
