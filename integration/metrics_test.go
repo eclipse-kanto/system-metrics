@@ -147,10 +147,6 @@ func (suite *systemMetricsSuite) testMetrics(params map[string]interface{}, expe
 					continue
 				}
 
-				if strings.HasPrefix(mm.ID, "test.") {
-					continue
-				}
-
 				return true, fmt.Errorf("Invalid metrics ID: %s", mm.ID)
 			}
 		}
