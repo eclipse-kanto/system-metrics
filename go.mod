@@ -3,7 +3,7 @@ module github.com/eclipse-kanto/system-metrics
 go 1.17
 
 require (
-	github.com/eclipse-kanto/kanto/integration/util v0.0.0-20221125101153-9ddda5ba7f25
+	github.com/eclipse-kanto/kanto/integration/util v0.0.0-20221125134142-56b32f6b3e24
 	github.com/eclipse/ditto-clients-golang v0.0.0-20220225085802-cf3b306280d3
 	github.com/eclipse/paho.mqtt.golang v1.4.1
 	github.com/google/uuid v1.3.0
