@@ -16,6 +16,7 @@ package integration
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -31,9 +32,10 @@ import (
 
 const (
 	metricsFeatureID = "Metrics"
+	dataAction       = "data"
 )
 
-type SystemMetricsSuite struct {
+type systemMetricsSuite struct {
 	suite.Suite
 
 	util.SuiteInitializer
@@ -41,23 +43,29 @@ type SystemMetricsSuite struct {
 	metricsThingURL   string
 	metricsFeatureURL string
 
+	pathData  string
 	topicData string
 }
 
-func (suite *SystemMetricsSuite) SetupSuite() {
+func (suite *systemMetricsSuite) SetupSuite() {
 	suite.SuiteInitializer.Setup(suite.T())
 
 	suite.metricsThingURL = util.GetThingURL(suite.Cfg.DigitalTwinAPIAddress, suite.ThingCfg.DeviceID)
 	suite.metricsFeatureURL = util.GetFeatureURL(suite.metricsThingURL, metricsFeatureID)
 
-	suite.topicData = util.GetLiveMessageTopic(suite.ThingCfg.DeviceID, protocol.TopicAction("data"))
+	suite.pathData = util.GetFeatureOutboxMessagePath(metricsFeatureID, dataAction)
+	suite.topicData = util.GetLiveMessageTopic(suite.ThingCfg.DeviceID, protocol.TopicAction(dataAction))
 }
 
-func (suite *SystemMetricsSuite) TearDownSuite() {
+func (suite *systemMetricsSuite) TearDownSuite() {
 	suite.SuiteInitializer.TearDown()
 }
 
-func (suite *SystemMetricsSuite) doTestMetrics(params map[string]interface{}) error {
+func TestSystemMetricsSuite(t *testing.T) {
+	suite.Run(t, new(systemMetricsSuite))
+}
+
+func (suite *systemMetricsSuite) testMetrics(params map[string]interface{}, originators ...string) error {
 	ws, err := util.NewDigitalTwinWSConnection(suite.Cfg)
 	require.NoError(suite.T(), err, "failed to create websocket connection")
 	defer ws.Close()
@@ -65,15 +73,18 @@ func (suite *SystemMetricsSuite) doTestMetrics(params map[string]interface{}) er
 	err = util.SubscribeForWSMessages(suite.Cfg, ws, "START-SEND-MESSAGES", "")
 	require.NoError(suite.T(), err, "unable to listen for events by using a websocket connection")
 
-	defer util.ExecuteOperation(suite.Cfg, suite.metricsFeatureURL, "request", map[string]interface{}{
-		"frequency": "0s",
-	})
+	defer func() {
+		_, err := util.ExecuteOperation(suite.Cfg, suite.metricsFeatureURL, "request", map[string]interface{}{
+			"frequency": "0s",
+		})
+		assert.NoError(suite.T(), err, "error while stopping system metrics")
+	}()
 
 	_, err = util.ExecuteOperation(suite.Cfg, suite.metricsFeatureURL, "request", params)
-	require.NoError(suite.T(), err, "error while executing operation")
+	require.NoError(suite.T(), err, "error while requesting the system metrics")
 
 	result := util.ProcessWSMessages(suite.Cfg, ws, func(msg *protocol.Envelope) (bool, error) {
-		if strings.Index(msg.Path, "/outbox/") == -1 {
+		if msg.Path != suite.pathData {
 			return false, nil
 		}
 
@@ -83,27 +94,59 @@ func (suite *SystemMetricsSuite) doTestMetrics(params map[string]interface{}) er
 
 		data, err := json.Marshal(msg.Value)
 		if err != nil {
-			return false, nil
+			return true, err
 		}
 
 		metric := new(metrics.MetricData)
 		if err := json.Unmarshal(data, metric); err != nil {
-			return false, nil
+			return true, err
 		}
 
-		return true, nil
+		var originatorFound bool
+		for _, m := range metric.Snapshot {
+
+			for _, originator := range originators {
+				if originator == m.Originator {
+					originatorFound = true
+				}
+			}
+
+			for _, mm := range m.Measurements {
+				if strings.HasPrefix(mm.ID, "cpu.") {
+					continue
+				}
+
+				if strings.HasPrefix(mm.ID, "memory.") {
+					continue
+				}
+
+				if strings.HasPrefix(mm.ID, "io.") {
+					continue
+				}
+
+				if strings.HasPrefix(mm.ID, "test.") {
+					continue
+				}
+
+				return false, fmt.Errorf("Invalid metrics ID: %s", mm.ID)
+			}
+		}
+
+		return originatorFound, nil
 	})
 
 	return result
 }
 
-func (suite *SystemMetricsSuite) TestMetricsRequest() {
-	err := suite.doTestMetrics(map[string]interface{}{
+func (suite *systemMetricsSuite) TestMetricsRequestDefaultOriginator() {
+	err := suite.testMetrics(map[string]interface{}{
 		"frequency": "5s",
-	})
-	assert.NoError(suite.T(), err, "metrics event should be received")
+	}, "SYSTEM")
+	assert.NoError(suite.T(), err, "metrics event from system originator should be received")
+}
 
-	err = suite.doTestMetrics(map[string]interface{}{
+func (suite *systemMetricsSuite) TestMetricsRequestMultipleOriginators() {
+	err := suite.testMetrics(map[string]interface{}{
 		"frequency": "5s",
 		"filter": []interface{}{map[string]interface{}{
 			"originator": "SYSTEM",
@@ -113,10 +156,12 @@ func (suite *SystemMetricsSuite) TestMetricsRequest() {
 				"originator": "suite-connector",
 			},
 		},
-	})
-	assert.NoError(suite.T(), err, "metrics event should be received")
+	}, "SYSTEM", "suite-connector")
+	assert.NoError(suite.T(), err, "metrics event from at least one originator system/suite-connector should be received")
+}
 
-	err = suite.doTestMetrics(map[string]interface{}{
+func (suite *systemMetricsSuite) TestMetricsRequestSystemLoadAverage() {
+	err := suite.testMetrics(map[string]interface{}{
 		"frequency": "5s",
 		"filter": []interface{}{map[string]interface{}{
 			"id":         []string{"cpu.load", "cpu.load1", "cpu.load5", "cpu.load15"},
@@ -127,55 +172,50 @@ func (suite *SystemMetricsSuite) TestMetricsRequest() {
 				"originator": "suite-connector",
 			},
 		},
-	})
+	}, "SYSTEM", "suite-connector")
 	assert.NoError(suite.T(), err, "metrics event should be received")
 }
 
-func (suite *SystemMetricsSuite) TestFilterNotMatching() {
-	err := suite.doTestMetrics(map[string]interface{}{
+func (suite *systemMetricsSuite) TestFilterNotMatching() {
+	err := suite.testMetrics(map[string]interface{}{
 		"frequency": "5s",
 		"filter": []interface{}{map[string]interface{}{
 			"id":         []string{"io.*", "cpu.*", "memory.*"},
 			"originator": "test.process",
 		},
 		},
-	})
-	assert.Error(suite.T(), err, "metrics events should not be received")
+	}, "test.process")
+	assert.Error(suite.T(), err, "metrics events for test.process should not be received")
 
-	err = suite.doTestMetrics(map[string]interface{}{
+	err = suite.testMetrics(map[string]interface{}{
 		"frequency": "5s",
 		"filter": []interface{}{map[string]interface{}{
 			"id":         []string{"test.io", "test.cpu", "test.memory"},
 			"originator": "SYSTEM",
 		},
 		},
-	})
-	assert.Error(suite.T(), err, "metrics events should not be received")
+	}, "SYSTEM")
+	assert.Error(suite.T(), err, "metrics events for non existing measurements test.* should not be received")
 }
 
-func (suite *SystemMetricsSuite) doTestMetricsError(params map[string]interface{}) {
-	defer util.ExecuteOperation(suite.Cfg, suite.metricsFeatureURL, "request", map[string]interface{}{
-		"frequency": "0s",
-	})
+func (suite *systemMetricsSuite) testMetricsError(params map[string]interface{}) {
+	defer func() {
+		_, err := util.ExecuteOperation(suite.Cfg, suite.metricsFeatureURL, "request", map[string]interface{}{
+			"frequency": "0s",
+		})
+		assert.NoError(suite.T(), err, "error while stopping system metrics")
+	}()
 
 	_, err := util.ExecuteOperation(suite.Cfg, suite.metricsFeatureURL, "request", params)
-	assert.Error(suite.T(), err, "no error while executing operation")
+	assert.Error(suite.T(), err, "no error while requesting the system metrics")
 }
 
-func (suite *SystemMetricsSuite) TestMetricRequestWithUnknownUnit() {
-	suite.doTestMetricsError(map[string]interface{}{
-		"frequency": "10 seconds",
+func (suite *systemMetricsSuite) TestMetricRequestWithInvalidUnit() {
+	suite.testMetricsError(map[string]interface{}{
+		"frequency": "10 seconds", // Valid is 10s
 	})
 
-	suite.doTestMetricsError(map[string]interface{}{
-		"frequency": "100 seconds",
+	suite.testMetricsError(map[string]interface{}{
+		"frequency": "2 hours", // Valid is 2h
 	})
-
-	suite.doTestMetricsError(map[string]interface{}{
-		"frequency": "2 hours",
-	})
-}
-
-func TestSystemMetricsSuite(t *testing.T) {
-	suite.Run(t, new(SystemMetricsSuite))
 }
