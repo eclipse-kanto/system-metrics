@@ -49,6 +49,14 @@ type systemMetricsSuite struct {
 	topicData string
 }
 
+func getConnectorOriginator() string {
+	suiteConnectorOriginator := "suite-connector"
+	if runtime.GOOS == "windows" {
+		suiteConnectorOriginator = suiteConnectorOriginator + ".exe"
+	}
+	return suiteConnectorOriginator
+}
+
 func (suite *systemMetricsSuite) SetupSuite() {
 	suite.SuiteInitializer.Setup(suite.T())
 
@@ -67,12 +75,11 @@ func TestSystemMetricsSuite(t *testing.T) {
 	suite.Run(t, new(systemMetricsSuite))
 }
 
-func getConnectorOriginator() string {
-	suiteConnectorOriginator := "suite-connector"
-	if runtime.GOOS == "windows" {
-		suiteConnectorOriginator = suiteConnectorOriginator + ".exe"
-	}
-	return suiteConnectorOriginator
+func (suite *systemMetricsSuite) stopSystemMetrics() {
+	_, err := util.ExecuteOperation(suite.Cfg, suite.metricsFeatureURL, "request", map[string]interface{}{
+		"frequency": "0s",
+	})
+	assert.NoError(suite.T(), err, "error while stopping system metrics")
 }
 
 func (suite *systemMetricsSuite) testMetrics(params map[string]interface{}, expectedOriginators ...string) error {
@@ -83,12 +90,7 @@ func (suite *systemMetricsSuite) testMetrics(params map[string]interface{}, expe
 	err = util.SubscribeForWSMessages(suite.Cfg, ws, "START-SEND-MESSAGES", "")
 	require.NoError(suite.T(), err, "unable to listen for events by using a websocket connection")
 
-	defer func() {
-		_, err := util.ExecuteOperation(suite.Cfg, suite.metricsFeatureURL, "request", map[string]interface{}{
-			"frequency": "0s",
-		})
-		assert.NoError(suite.T(), err, "error while stopping system metrics")
-	}()
+	defer suite.stopSystemMetrics()
 
 	timestamp := time.Now().Unix()
 	actualOriginators := make(map[string]bool)
@@ -121,11 +123,10 @@ func (suite *systemMetricsSuite) testMetrics(params map[string]interface{}, expe
 
 		for _, m := range metric.Snapshot {
 
-		loop:
 			for _, originator := range expectedOriginators {
 				if originator == m.Originator {
 					actualOriginators[originator] = true
-					break loop
+					break
 				}
 			}
 
@@ -221,12 +222,7 @@ func (suite *systemMetricsSuite) TestFilterNotMatching() {
 }
 
 func (suite *systemMetricsSuite) testMetricsError(params map[string]interface{}) {
-	defer func() {
-		_, err := util.ExecuteOperation(suite.Cfg, suite.metricsFeatureURL, "request", map[string]interface{}{
-			"frequency": "0s",
-		})
-		assert.NoError(suite.T(), err, "error while stopping system metrics")
-	}()
+	defer suite.stopSystemMetrics()
 
 	_, err := util.ExecuteOperation(suite.Cfg, suite.metricsFeatureURL, "request", params)
 	assert.Error(suite.T(), err, "no error while requesting the system metrics")
