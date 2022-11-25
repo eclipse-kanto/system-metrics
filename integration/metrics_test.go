@@ -17,8 +17,10 @@ package integration
 import (
 	"encoding/json"
 	"fmt"
+	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/eclipse-kanto/kanto/integration/util"
 	"github.com/eclipse-kanto/system-metrics/internal/metrics"
@@ -32,7 +34,7 @@ import (
 
 const (
 	metricsFeatureID = "Metrics"
-	dataAction       = "data"
+	actionData       = "data"
 )
 
 type systemMetricsSuite struct {
@@ -53,8 +55,8 @@ func (suite *systemMetricsSuite) SetupSuite() {
 	suite.metricsThingURL = util.GetThingURL(suite.Cfg.DigitalTwinAPIAddress, suite.ThingCfg.DeviceID)
 	suite.metricsFeatureURL = util.GetFeatureURL(suite.metricsThingURL, metricsFeatureID)
 
-	suite.pathData = util.GetFeatureOutboxMessagePath(metricsFeatureID, dataAction)
-	suite.topicData = util.GetLiveMessageTopic(suite.ThingCfg.DeviceID, protocol.TopicAction(dataAction))
+	suite.pathData = util.GetFeatureOutboxMessagePath(metricsFeatureID, actionData)
+	suite.topicData = util.GetLiveMessageTopic(suite.ThingCfg.DeviceID, protocol.TopicAction(actionData))
 }
 
 func (suite *systemMetricsSuite) TearDownSuite() {
@@ -65,7 +67,15 @@ func TestSystemMetricsSuite(t *testing.T) {
 	suite.Run(t, new(systemMetricsSuite))
 }
 
-func (suite *systemMetricsSuite) testMetrics(params map[string]interface{}, originators ...string) error {
+func getConnectorOriginator() string {
+	suiteConnectorOriginator := "suite-connector"
+	if runtime.GOOS == "windows" {
+		suiteConnectorOriginator = suiteConnectorOriginator + ".exe"
+	}
+	return suiteConnectorOriginator
+}
+
+func (suite *systemMetricsSuite) testMetrics(params map[string]interface{}, expectedOriginators ...string) error {
 	ws, err := util.NewDigitalTwinWSConnection(suite.Cfg)
 	require.NoError(suite.T(), err, "failed to create websocket connection")
 	defer ws.Close()
@@ -82,6 +92,9 @@ func (suite *systemMetricsSuite) testMetrics(params map[string]interface{}, orig
 
 	_, err = util.ExecuteOperation(suite.Cfg, suite.metricsFeatureURL, "request", params)
 	require.NoError(suite.T(), err, "error while requesting the system metrics")
+
+	timestamp := time.Now().Unix()
+	actualOriginators := make(map[string]bool)
 
 	result := util.ProcessWSMessages(suite.Cfg, ws, func(msg *protocol.Envelope) (bool, error) {
 		if msg.Path != suite.pathData {
@@ -102,13 +115,22 @@ func (suite *systemMetricsSuite) testMetrics(params map[string]interface{}, orig
 			return true, err
 		}
 
-		var originatorFound bool
+		if metric.Timestamp < timestamp {
+			return true, fmt.Errorf("Invalid timestamp: %v", metric.Timestamp)
+		}
+
 		for _, m := range metric.Snapshot {
 
-			for _, originator := range originators {
+		loop:
+			for _, originator := range expectedOriginators {
 				if originator == m.Originator {
-					originatorFound = true
+					actualOriginators[originator] = true
+					break loop
 				}
+			}
+
+			if _, ok := actualOriginators[m.Originator]; !ok {
+				return true, fmt.Errorf("Invalid originator: %s", m.Originator)
 			}
 
 			for _, mm := range m.Measurements {
@@ -128,11 +150,11 @@ func (suite *systemMetricsSuite) testMetrics(params map[string]interface{}, orig
 					continue
 				}
 
-				return false, fmt.Errorf("Invalid metrics ID: %s", mm.ID)
+				return true, fmt.Errorf("Invalid metrics ID: %s", mm.ID)
 			}
 		}
 
-		return originatorFound, nil
+		return len(expectedOriginators) == len(actualOriginators), nil
 	})
 
 	return result
@@ -153,11 +175,11 @@ func (suite *systemMetricsSuite) TestMetricsRequestMultipleOriginators() {
 		},
 			map[string]interface{}{
 				"id":         []string{"io.*", "cpu.*", "memory.*"},
-				"originator": "suite-connector",
+				"originator": getConnectorOriginator(),
 			},
 		},
-	}, "SYSTEM", "suite-connector")
-	assert.NoError(suite.T(), err, "metrics event from at least one originator system/suite-connector should be received")
+	}, "SYSTEM", getConnectorOriginator())
+	assert.NoError(suite.T(), err, "metrics event from both originators system/suite-connector should be received")
 }
 
 func (suite *systemMetricsSuite) TestMetricsRequestSystemLoadAverage() {
@@ -169,11 +191,11 @@ func (suite *systemMetricsSuite) TestMetricsRequestSystemLoadAverage() {
 		},
 			map[string]interface{}{
 				"id":         []string{"io.*", "cpu.*", "memory.*"},
-				"originator": "suite-connector",
+				"originator": getConnectorOriginator(),
 			},
 		},
-	}, "SYSTEM", "suite-connector")
-	assert.NoError(suite.T(), err, "metrics event should be received")
+	}, "SYSTEM", getConnectorOriginator())
+	assert.NoError(suite.T(), err, "metrics event from both originators system/suite-connector should be received")
 }
 
 func (suite *systemMetricsSuite) TestFilterNotMatching() {
@@ -185,7 +207,7 @@ func (suite *systemMetricsSuite) TestFilterNotMatching() {
 		},
 		},
 	}, "test.process")
-	assert.Error(suite.T(), err, "metrics events for test.process should not be received")
+	assert.Error(suite.T(), err, "metrics event for non existing test.process should not be received")
 
 	err = suite.testMetrics(map[string]interface{}{
 		"frequency": "5s",
@@ -195,7 +217,7 @@ func (suite *systemMetricsSuite) TestFilterNotMatching() {
 		},
 		},
 	}, "SYSTEM")
-	assert.Error(suite.T(), err, "metrics events for non existing measurements test.* should not be received")
+	assert.Error(suite.T(), err, "metrics event for non existing measurements test.* should not be received")
 }
 
 func (suite *systemMetricsSuite) testMetricsError(params map[string]interface{}) {
