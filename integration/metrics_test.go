@@ -186,13 +186,9 @@ func (suite *systemMetricsSuite) TestMetricsRequestSystemLoadAverage() {
 			"id":         []string{"cpu.load", "cpu.load1", "cpu.load5", "cpu.load15"},
 			"originator": "SYSTEM",
 		},
-			map[string]interface{}{
-				"id":         []string{"io.*", "cpu.*", "memory.*"},
-				"originator": getConnectorOriginator(),
-			},
 		},
-	}, "SYSTEM", getConnectorOriginator())
-	assert.NoError(suite.T(), err, "metrics event from both originators system/suite-connector should be received")
+	}, "SYSTEM")
+	assert.NoError(suite.T(), err, "metrics event from system originator should be received")
 }
 
 func (suite *systemMetricsSuite) TestFilterNotMatching() {
