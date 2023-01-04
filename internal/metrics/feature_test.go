@@ -187,7 +187,11 @@ func TestHandleRequestPublishedMessages(t *testing.T) {
 		WithPayload(&Request{
 			Frequency: Duration{1 * time.Second},
 		})
-	metrics.client.Send(msg.Inbox(testOperationRequest).Envelope(protocol.WithCorrelationID("request_1")))
+
+	metrics.client.Send(msg.Inbox(testOperationRequest).
+		Envelope(protocol.WithResponseRequired(true),
+			protocol.WithCorrelationID("request_1")))
+
 	assertReplyStatusOK(t, mc)
 	assertDefaultMetricData(t, mc)
 
@@ -196,7 +200,11 @@ func TestHandleRequestPublishedMessages(t *testing.T) {
 		WithPayload(&Request{
 			Frequency: Duration{0 * time.Second},
 		})
-	metrics.client.Send(msgStop.Inbox(testOperationRequest).Envelope(protocol.WithCorrelationID("request_stop")))
+
+	metrics.client.Send(msgStop.Inbox(testOperationRequest).
+		Envelope(protocol.WithResponseRequired(true),
+			protocol.WithCorrelationID("request_stop")))
+
 	assertReplyStatusOK(t, mc)
 	assertNoMetricData(t, mc)
 
@@ -210,7 +218,11 @@ func TestHandleRequestInvalidFrequency(t *testing.T) {
 	msg := things.NewMessage(model.NewNamespacedIDFrom(testThingID)).
 		Feature(featureID).
 		WithPayload("{'frequency':'invalid_duration'}")
-	metrics.client.Send(msg.Inbox(testOperationRequest).Envelope(protocol.WithCorrelationID("request_invalid_duration")))
+
+	metrics.client.Send(msg.Inbox(testOperationRequest).
+		Envelope(protocol.WithResponseRequired(true),
+			protocol.WithCorrelationID("request_invalid_duration")))
+
 	receivedMsg := mc.value(t)
 	format := "expected message error %v but is: %v"
 	if receivedMsg == nil {
