@@ -189,9 +189,21 @@ func TestNoResponseRequiredSet(t *testing.T) {
 		})
 
 	metrics.client.Send(msg.Inbox(testOperationRequest).
-		Envelope(protocol.WithCorrelationID("request_no_response")))
+		Envelope(protocol.WithCorrelationID("request_start_no_response")))
 
 	assertDefaultMetricData(t, mc)
+
+	msgStop := things.NewMessage(model.NewNamespacedIDFrom(testThingID)).
+		Feature(featureID).
+		WithPayload(&Request{
+			Frequency: Duration{0 * time.Second},
+		})
+
+	metrics.client.Send(msgStop.Inbox(testOperationRequest).
+		Envelope(protocol.WithCorrelationID("request_stop_no_response")))
+
+	assertNoMetricData(t, mc)
+	metricsClose(t, metrics, mc)
 }
 
 func TestHandleRequestPublishedMessages(t *testing.T) {
