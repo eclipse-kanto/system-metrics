@@ -141,7 +141,7 @@ func (m *Metrics) messageHandler(requestID string, msg *protocol.Envelope) {
 		if msg.Path == pathMetricsRequest {
 			correlationID := msg.Headers.CorrelationID()
 			msgErr := m.handleMessageRequest(msg, correlationID)
-			if len(correlationID) > 0 {
+			if msg.Headers.IsResponseRequired() {
 				m.sendReply(requestID, correlationID, string(msg.Topic.Action), msgErr)
 			}
 		} else {
