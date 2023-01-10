@@ -177,6 +177,23 @@ func TestReplyOK(t *testing.T) {
 	}
 }
 
+func TestNoResponseRequiredSet(t *testing.T) {
+	metrics, mc := testInit()
+	doTestConnection(metrics, mc)
+	assertNoMetricData(t, mc)
+
+	msg := things.NewMessage(model.NewNamespacedIDFrom(testThingID)).
+		Feature(featureID).
+		WithPayload(&Request{
+			Frequency: Duration{1 * time.Second},
+		})
+
+	metrics.client.Send(msg.Inbox(testOperationRequest).
+		Envelope(protocol.WithCorrelationID("request_no_response")))
+
+	assertDefaultMetricData(t, mc)
+}
+
 func TestHandleRequestPublishedMessages(t *testing.T) {
 	metrics, mc := testInit()
 	doTestConnection(metrics, mc)
