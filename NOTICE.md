@@ -100,11 +100,11 @@ tklauser/numcpus (0.2.1)
 * Project: https://github.com/tklauser/numcpus
 * Source:  https://github.com/tklauser/numcpus/releases/tag/v0.2.1
 
-golang.org/x/net (0.0.0-20210405180319-a5a99cb37ef4)
+golang.org/x/net (0.7.0)
 
 * License: BSD 3-Clause "New" or "Revised" License
 * Project: https://github.com/golang/net
-* Source:  https://github.com/golang/net/tree/a5a99cb37ef4b68617775ab669177656090ab396
+* Source:  https://github.com/golang/net/releases/tag/v0.7.0
 
 golang.org/x/sync (v0.0.0-20210220032951-036812b2e83c)
 
@@ -112,11 +112,11 @@ golang.org/x/sync (v0.0.0-20210220032951-036812b2e83c)
 * Project: https://github.com/golang/sync
 * Source:  https://github.com/golang/sync/tree/036812b2e83c0ddf193dd5a34e034151da389d09
 
-golang.org/x/sys (0.0.0-20210510120138-977fb7262007)
+golang.org/x/sys (0.5.0)
 
 * License: BSD 3-Clause "New" or "Revised" License
 * Project: https://github.com/golang/sys
-* Source:  https://github.com/golang/sys/tree/977fb726200739a14ae24a01d85ae3e640cf23bc
+* Source:  https://github.com/golang/sys/releases/tag/v0.5.0
 
 natefinch/lumberjack (2.0.0)
 
