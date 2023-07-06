@@ -13,8 +13,12 @@
 package client
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io/ioutil"
 	"time"
 
 	"github.com/eclipse-kanto/system-metrics/internal/logger"
@@ -31,6 +35,9 @@ type BrokerConfig struct {
 	Broker   string `json:"broker"`
 	Username string `json:"username"`
 	Password string `json:"password"`
+	CaCert   string `json:"caCert,omitempty"`
+	Cert     string `json:"cert,omitempty"`
+	Key      string `json:"key,omitempty"`
 }
 
 // EdgeConfiguration represents local Edge Thing configuration - its device, tenant and policy identifiers.
@@ -60,12 +67,44 @@ type EdgeConnector interface {
 func NewEdgeManager(config *BrokerConfig, edgeConnector EdgeConnector) (*EdgeManager, error) {
 	logger.Infof("Retrieve edge configuration from '%s'", config.Broker)
 
+	var tlsConfig *tls.Config
+	var certificates []tls.Certificate
+	var caCertPool *x509.CertPool
+	if len(config.Cert) > 0 || len(config.Key) > 0 {
+		keyPair, err := tls.LoadX509KeyPair(config.Cert, config.Key)
+		if err != nil {
+			return nil, fmt.Errorf("error reading x509 key pair files(\"%s, %s\") - %v", config.Cert, config.Key, err)
+		}
+		certificates = []tls.Certificate{keyPair}
+		if len(config.CaCert) > 0 { // otherwise the system certificate pool will be used
+			caCert, err := ioutil.ReadFile(config.CaCert)
+			if err != nil {
+				return nil, fmt.Errorf("error reading CA certificate file \"%s\" - %v", config.CaCert, err)
+			}
+			caCertPool = x509.NewCertPool()
+			if ok := caCertPool.AppendCertsFromPEM(caCert); !ok {
+				return nil, fmt.Errorf("cannot append CA certificate loaded from \"%s\" to pool", config.CaCert)
+			}
+		}
+		tlsConfig = &tls.Config{
+			InsecureSkipVerify: false,
+			RootCAs:            caCertPool,
+			Certificates:       certificates,
+			MinVersion:         tls.VersionTLS12,
+			MaxVersion:         tls.VersionTLS13,
+			CipherSuites:       supportedCipherSuites(),
+		}
+	}
+
 	opts := MQTT.NewClientOptions().
 		AddBroker(config.Broker).
 		SetClientID(uuid.New().String()).
 		SetKeepAlive(30 * time.Second).
 		SetCleanSession(true).
 		SetAutoReconnect(true)
+	if tlsConfig != nil {
+		opts = opts.SetTLSConfig(tlsConfig)
+	}
 	if len(config.Username) > 0 {
 		opts = opts.SetUsername(config.Username).SetPassword(config.Password)
 	}
@@ -134,4 +173,13 @@ func (edgeManager *EdgeManager) Close() {
 	edgeManager.mqttClient.Disconnect(200)
 
 	logger.Info("Disconnected from MQTT broker")
+}
+
+func supportedCipherSuites() []uint16 {
+	cs := tls.CipherSuites()
+	cid := make([]uint16, len(cs))
+	for i := range cs {
+		cid[i] = cs[i].ID
+	}
+	return cid
 }

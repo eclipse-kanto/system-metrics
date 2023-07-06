@@ -28,6 +28,9 @@ func TestFlagsParseNoConfig(t *testing.T) {
 	args := []string{
 		"-username=test",
 		"-password=test",
+		"-caCert=testCaCert",
+		"-cert=clientCert",
+		"-key=clientKey",
 		"-frequency=30s",
 		"-logFile=P",
 		"-logLevel=TRACE",
@@ -38,6 +41,9 @@ func TestFlagsParseNoConfig(t *testing.T) {
 	expConfig := config.Default()
 	expConfig.Username = "test"
 	expConfig.Password = "test"
+	expConfig.CaCert = "testCaCert"
+	expConfig.Cert = "clientCert"
+	expConfig.Key = "clientKey"
 	expConfig.Frequency.Duration = 30 * time.Second
 	expConfig.LogFile = "P"
 	expConfig.LogLevel = logger.TRACE.String()
@@ -62,6 +68,9 @@ func TestConfigParse(t *testing.T) {
 	expConfig := config.Default()
 	expConfig.Username = "Username_config"
 	expConfig.Password = "test"
+	expConfig.CaCert = "CaCert_config"
+	expConfig.Cert = "Cert_config"
+	expConfig.Key = "Key_config"
 
 	expConfig.Frequency.Duration = 5 * time.Minute
 	expConfig.Filter = []metrics.Filter{
@@ -91,6 +100,9 @@ func TestFlagsOverrideConfig(t *testing.T) {
 	args := []string{
 		"-username=test",
 		"-password=test",
+		"-caCert=testCaCert",
+		"-cert=clientCert",
+		"-key=clientKey",
 		"-frequency=30m",
 		"-logFile=P",
 		"-logLevel=TRACE",
@@ -102,6 +114,9 @@ func TestFlagsOverrideConfig(t *testing.T) {
 	expConfig := config.Default()
 	expConfig.Username = "test"
 	expConfig.Password = "test"
+	expConfig.CaCert = "testCaCert"
+	expConfig.Cert = "clientCert"
+	expConfig.Key = "clientKey"
 	expConfig.Frequency.Duration = 30 * time.Minute
 	expConfig.Filter = []metrics.Filter{
 		{
