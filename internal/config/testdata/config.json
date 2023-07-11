@@ -1,6 +1,9 @@
 {
     "username": "Username_config",
     "password": "Password_config",
+    "caCert": "CaCert_config",
+    "clientCert": "Cert_config",
+    "clientKey": "Key_config",
     "logFile": "logFile_config",
     "logLevel": "DEBUG",
     "frequency": "5m",
