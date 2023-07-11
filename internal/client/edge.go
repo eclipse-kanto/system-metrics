@@ -13,15 +13,13 @@
 package client
 
 import (
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"errors"
-	"fmt"
-	"io/ioutil"
+	"net/url"
 	"time"
 
 	"github.com/eclipse-kanto/system-metrics/internal/logger"
+	"github.com/eclipse-kanto/system-metrics/util/tls"
 	MQTT "github.com/eclipse/paho.mqtt.golang"
 	"github.com/google/uuid"
 )
@@ -32,12 +30,12 @@ const (
 
 // BrokerConfig contains address and credentials for the MQTT broker
 type BrokerConfig struct {
-	Broker   string `json:"broker"`
-	Username string `json:"username"`
-	Password string `json:"password"`
-	CaCert   string `json:"caCert,omitempty"`
-	Cert     string `json:"cert,omitempty"`
-	Key      string `json:"key,omitempty"`
+	Broker     string `json:"broker"`
+	Username   string `json:"username"`
+	Password   string `json:"password"`
+	CaCert     string `json:"caCert,omitempty"`
+	ClientCert string `json:"clientCert,omitempty"`
+	ClientKey  string `json:"clientKey,omitempty"`
 }
 
 // EdgeConfiguration represents local Edge Thing configuration - its device, tenant and policy identifiers.
@@ -67,46 +65,18 @@ type EdgeConnector interface {
 func NewEdgeManager(config *BrokerConfig, edgeConnector EdgeConnector) (*EdgeManager, error) {
 	logger.Infof("Retrieve edge configuration from '%s'", config.Broker)
 
-	var tlsConfig *tls.Config
-	var certificates []tls.Certificate
-	var caCertPool *x509.CertPool
-	if len(config.Cert) > 0 || len(config.Key) > 0 {
-		keyPair, err := tls.LoadX509KeyPair(config.Cert, config.Key)
-		if err != nil {
-			return nil, fmt.Errorf("error reading x509 key pair files(\"%s, %s\") - %v", config.Cert, config.Key, err)
-		}
-		certificates = []tls.Certificate{keyPair}
-		if len(config.CaCert) > 0 { // otherwise the system certificate pool will be used
-			caCert, err := ioutil.ReadFile(config.CaCert)
-			if err != nil {
-				return nil, fmt.Errorf("error reading CA certificate file \"%s\" - %v", config.CaCert, err)
-			}
-			caCertPool = x509.NewCertPool()
-			if ok := caCertPool.AppendCertsFromPEM(caCert); !ok {
-				return nil, fmt.Errorf("cannot append CA certificate loaded from \"%s\" to pool", config.CaCert)
-			}
-		}
-		tlsConfig = &tls.Config{
-			InsecureSkipVerify: false,
-			RootCAs:            caCertPool,
-			Certificates:       certificates,
-			MinVersion:         tls.VersionTLS12,
-			MaxVersion:         tls.VersionTLS13,
-			CipherSuites:       supportedCipherSuites(),
-		}
-	}
-
 	opts := MQTT.NewClientOptions().
 		AddBroker(config.Broker).
 		SetClientID(uuid.New().String()).
 		SetKeepAlive(30 * time.Second).
 		SetCleanSession(true).
 		SetAutoReconnect(true)
-	if tlsConfig != nil {
-		opts = opts.SetTLSConfig(tlsConfig)
-	}
 	if len(config.Username) > 0 {
 		opts = opts.SetUsername(config.Username).SetPassword(config.Password)
+	}
+
+	if err := setupTLSConfiguration(opts, config); err != nil {
+		return nil, err
 	}
 
 	edgeManager := &EdgeManager{mqttClient: MQTT.NewClient(opts)}
@@ -116,6 +86,36 @@ func NewEdgeManager(config *BrokerConfig, edgeConnector EdgeConnector) (*EdgeMan
 	}
 
 	return edgeManager, nil
+}
+
+func setupTLSConfiguration(pahoOpts *MQTT.ClientOptions, configuration *BrokerConfig) error {
+	u, err := url.Parse(configuration.Broker)
+	if err != nil {
+		return err
+	}
+
+	if isConnectionSecure(u.Scheme) {
+		if len(configuration.CaCert) == 0 {
+			return errors.New("connection is secure, but no TLS configuration is provided")
+		}
+		tlsConfig, err := tls.NewConfig(
+			configuration.CaCert, configuration.ClientCert, configuration.ClientKey)
+		if err != nil {
+			return err
+		}
+		pahoOpts.SetTLSConfig(tlsConfig)
+	}
+
+	return nil
+}
+
+func isConnectionSecure(schema string) bool {
+	switch schema {
+	case "wss", "ssl", "tls", "mqtts", "mqtt+ssl", "tcps":
+		return true
+	default:
+	}
+	return false
 }
 
 // initEdgeConfigurationHandler connects the MQTT Client and starts listening for Thing Info changes
@@ -160,6 +160,10 @@ func (b *BrokerConfig) Validate() error {
 		return errors.New("broker is missing")
 	}
 
+	if (len(b.ClientCert) == 0) != (len(b.ClientKey) == 0) {
+		return errors.New("either both client MQTT certificate and key must be set or none of them")
+	}
+
 	return nil
 }
 
@@ -173,13 +177,4 @@ func (edgeManager *EdgeManager) Close() {
 	edgeManager.mqttClient.Disconnect(200)
 
 	logger.Info("Disconnected from MQTT broker")
-}
-
-func supportedCipherSuites() []uint16 {
-	cs := tls.CipherSuites()
-	cid := make([]uint16, len(cs))
-	for i := range cs {
-		cid[i] = cs[i].ID
-	}
-	return cid
 }

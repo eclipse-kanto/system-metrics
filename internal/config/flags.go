@@ -93,8 +93,8 @@ func add(f *flag.FlagSet) *MetricsConfig {
 	f.StringVar(&metricsConfig.Username, "username", def.Username, "Username for authorized local client")
 	f.StringVar(&metricsConfig.Password, "password", def.Password, "Password for authorized local client")
 	f.StringVar(&metricsConfig.CaCert, "caCert", def.CaCert, "A PEM encoded CA certificates `file` for MQTT broker connection")
-	f.StringVar(&metricsConfig.Cert, "cert", def.Cert, "A PEM encoded certificate `file` for MQTT broker connection")
-	f.StringVar(&metricsConfig.Key, "key", def.Key, "A PEM encoded unencrypted private key `file` for MQTT broker connection")
+	f.StringVar(&metricsConfig.ClientCert, "clientCert", def.ClientCert, "A PEM encoded certificate `file` to authenticate to the MQTT server/broker")
+	f.StringVar(&metricsConfig.ClientKey, "clientKey", def.ClientKey, "A PEM encoded unencrypted private key `file` to authenticate to the MQTT server/broker")
 
 	f.DurationVar(&metricsConfig.Frequency.Duration, "frequency", def.Frequency.Duration,
 		"Initial frequency of publishing system data to cloud as duration string, e.g. 30s, 10m",

@@ -29,8 +29,8 @@ func TestFlagsParseNoConfig(t *testing.T) {
 		"-username=test",
 		"-password=test",
 		"-caCert=testCaCert",
-		"-cert=clientCert",
-		"-key=clientKey",
+		"-clientCert=clientCert",
+		"-clientKey=clientKey",
 		"-frequency=30s",
 		"-logFile=P",
 		"-logLevel=TRACE",
@@ -42,8 +42,8 @@ func TestFlagsParseNoConfig(t *testing.T) {
 	expConfig.Username = "test"
 	expConfig.Password = "test"
 	expConfig.CaCert = "testCaCert"
-	expConfig.Cert = "clientCert"
-	expConfig.Key = "clientKey"
+	expConfig.ClientCert = "clientCert"
+	expConfig.ClientKey = "clientKey"
 	expConfig.Frequency.Duration = 30 * time.Second
 	expConfig.LogFile = "P"
 	expConfig.LogLevel = logger.TRACE.String()
@@ -69,8 +69,8 @@ func TestConfigParse(t *testing.T) {
 	expConfig.Username = "Username_config"
 	expConfig.Password = "test"
 	expConfig.CaCert = "CaCert_config"
-	expConfig.Cert = "Cert_config"
-	expConfig.Key = "Key_config"
+	expConfig.ClientCert = "Cert_config"
+	expConfig.ClientKey = "Key_config"
 
 	expConfig.Frequency.Duration = 5 * time.Minute
 	expConfig.Filter = []metrics.Filter{
@@ -101,8 +101,8 @@ func TestFlagsOverrideConfig(t *testing.T) {
 		"-username=test",
 		"-password=test",
 		"-caCert=testCaCert",
-		"-cert=clientCert",
-		"-key=clientKey",
+		"-clientCert=clientCert",
+		"-clientKey=clientKey",
 		"-frequency=30m",
 		"-logFile=P",
 		"-logLevel=TRACE",
@@ -115,8 +115,8 @@ func TestFlagsOverrideConfig(t *testing.T) {
 	expConfig.Username = "test"
 	expConfig.Password = "test"
 	expConfig.CaCert = "testCaCert"
-	expConfig.Cert = "clientCert"
-	expConfig.Key = "clientKey"
+	expConfig.ClientCert = "clientCert"
+	expConfig.ClientKey = "clientKey"
 	expConfig.Frequency.Duration = 30 * time.Minute
 	expConfig.Filter = []metrics.Filter{
 		{
@@ -178,6 +178,20 @@ func TestValidateBrokerConfigInvalid(t *testing.T) {
 	_, err := config.Parse(f, args, "0.0.0")
 	if !assertEqualsErrors(err, "broker is missing") {
 		t.Errorf("Expected error 'broker is missing', but received  err: %v", err)
+	}
+}
+
+func TestValidateBrokerConfigInvalidMQTTTLSflags(t *testing.T) {
+	f := flag.NewFlagSet("testing", flag.ContinueOnError)
+	args := []string{
+		"-broker=test",
+		"-caCert=testCaCert",
+		"-clientCert=clientCert",
+	}
+
+	_, err := config.Parse(f, args, "0.0.0")
+	if !assertEqualsErrors(err, "either both client MQTT certificate and key must be set or none of them") {
+		t.Errorf("Expected error 'either both client MQTT certificate and key must be set or none of them', but received  err: %v", err)
 	}
 }
 
