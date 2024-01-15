@@ -1,6 +1,8 @@
-![Kanto logo](https://github.com/eclipse-kanto/kanto/raw/main/logo/kanto.svg)
+[![Kanto logo](https://github.com/eclipse-kanto/kanto/raw/main/logo/kanto.svg)](https://eclipse.dev/kanto/)
 
 # Eclipse Kanto - System Metrics
+
+[![Coverage](https://github.com/eclipse-kanto/system-metrics/wiki/coverage.svg)](#)
 
 This functionality is provided by the Eclipse Kanto as a System Metrics native application.
 It allows you to receive the metrics such a CPU utilization, memory usage, and other information for
